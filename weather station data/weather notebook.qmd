@@ -33,7 +33,7 @@ Los archivos resultantes son guardados en el repositorio de la Alianza Jambato q
 
 Antes de empezar se debe llamar a todos los paquetes de R que se utilizarán dentro de este ejercicio. Los paquetes son `readr`, `tidyr`, `dplyr`, `clock`, `ggplot2` & `lubridate`.
 
-```{r, echo=FALSE, results='hide'}
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
 library(tidyr)
 library(dplyr)
 library(ggplot2)
@@ -46,7 +46,7 @@ El procesamiento de datos hasta esta fase incluye el poder llamar, harmonizar (e
 
 El primer paso es llamar a los datos una vez estos sean descargados localmente. Esta parte del código dependerá de dónde se descarguen los datos en el computador de cada uno. El uso de "\\" o "/" dependerá tambien del sistema operativo en uso.
 
-```{r, echo=FALSE, results='hide'}
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
 # estableciendo la dirección de CSVs en mi computador local
 
 folder_path <- "/Users/andresmarmolguijarro/Downloads/meteor"
@@ -58,13 +58,13 @@ csv_list <- list.files(path = folder_path, pattern = "\\.csv$", full.names = TRU
 
 Finalmente se llaman a todos los csvs mensuales
 
-```{r, echo=FALSE}
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
 csvs<- lapply(csv_list, read_csv)
 ```
 
 **Nota:** Un paso adicional que ayuda a general un solo archivo consolidado es el siguiente:
 
-```{r, echo=FALSE}
+```{r, echo=TRUE, message=FALSE, warning=FALSE}
 # crea una función para llamar a todos los CSVs
 
 csvsall <- lapply(csv_list, function(file){
