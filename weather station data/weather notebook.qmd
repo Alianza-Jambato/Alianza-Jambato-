@@ -19,17 +19,13 @@ La estación meteorológica de la Alianza Jambato envía los datos diarios a la 
 
 **NOTA:** Es importante revisar el estado de las baterías AA y AAA que operan en la estación científica periódicamente. Se puede encontrar información respecto a esto en el Dashboard de inicio al iniciar sesión en Ambient Weather.
 
-![](images/Screenshot%202025-03-23%20at%2013.12.52.png)
-
 Una vez ingresado, uno se dirige hacia la pestaña "Graphs & Tables" y posteriormente se hace click sobre las fechas para seleccionar el rango de días a descargarse (fig 1.1).
 
-![Fig 1.1. Frontend de ambient weather. En la parte derecha se puede ver un menú desplegable que permite especificar el periodo de tiempo para descargar los datos.](images/Screenshot%202025-03-23%20at%2012.51.21.png)
+![Fig 1.1. Frontend de ambient weather. En la parte derecha se puede ver un menú desplegable que permite especificar el periodo de tiempo para descargar los datos.](wn images/Screenshot 2025-05-12 at 20.29.01 con flecha.png)
 
 Una vez especificada la fecha, la imagen cambia a las variaciones dentro del rango seleccionado. Para descargar los datos primero se solicita que se resuman los datos (fig 1.2) y posteriomente se procede a seleccionar "Export all data" (figura 1.3).
 
-![Fig 1.2. Resumen mensual de datos. En este gráfico se pueden obtener los resúmenes mensuales.](Desktop/Screenshot%202025-03-23%20at%2012.57.18.png)
-
-![Fig 1.3. Resumen de datos. Aquí finalmente se da click en en ícono de la derecha (con el círculo azul) y se procede a seleccionar todos los datos.)](Desktop/Screenshot%202025-03-23%20at%2013.00.32.png)
+![Fig 1.2. Resumen de datos. Aquí finalmente se da click en en ícono de la derecha (con el círculo azul) y se procede a seleccionar todos los datos.)](wn images/Screenshot 2025-05-12 at 20.32.32.png)
 
 Los archivos resultantes son guardados en el repositorio de la Alianza Jambato que actualmente se encuentra en la cuenta de Google Drive (el repositorio será migrado a OneDrive).
 
@@ -37,7 +33,7 @@ Los archivos resultantes son guardados en el repositorio de la Alianza Jambato q
 
 Antes de empezar se debe llamar a todos los paquetes de R que se utilizarán dentro de este ejercicio. Los paquetes son `readr`, `tidyr`, `dplyr`, `clock`, `ggplot2` & `lubridate`.
 
-```{r}
+```{r, echo=FALSE, results='hide'}
 library(tidyr)
 library(dplyr)
 library(ggplot2)
@@ -50,7 +46,7 @@ El procesamiento de datos hasta esta fase incluye el poder llamar, harmonizar (e
 
 El primer paso es llamar a los datos una vez estos sean descargados localmente. Esta parte del código dependerá de dónde se descarguen los datos en el computador de cada uno. El uso de "\\" o "/" dependerá tambien del sistema operativo en uso.
 
-```{r}
+```{r, echo=FALSE, results='hide'}
 # estableciendo la dirección de CSVs en mi computador local
 
 folder_path <- "/Users/andresmarmolguijarro/Downloads/meteor"
@@ -118,10 +114,6 @@ Ahora se separa `NewDate` en dos columnas: una para fecha y una para hora.
 ```{r}
 dfall <-  separate(dfall, new_date, sep=" ",
               into = c("date", "time"))
-```
-
-```{r}
-#dfall$date <-  as.POSIXct(dfall$date, format="%Y-%m-%d")
 ```
 
 ## 3. Analizando y realizando figuras
@@ -194,11 +186,13 @@ td <- ggplot(dfall, aes(x=as.Date(new_date_bkp), y=outdoor_temperature_c, group 
 td
 ```
 
+## 4. Ubicación de la estación meteorológica en Angamarca.
+
 ```{r}
 library(leaflet)
 
 leaflet() %>%
   addTiles() %>%
-  addMarkers(lng = -78.93, lat = -1.12, popup = "1.12°S, 78.93°W") %>%
-  setView(lng = -78.93, lat = -1.12, zoom = 8)
+  addMarkers(lng = -78.906386, lat = -1.127606, popup = "1.13°S, 78.91°W") %>%
+  setView(lng = -78.906386, lat = -1.127606, zoom = 8)
 ```
