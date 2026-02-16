@@ -10,3 +10,9 @@ Project/Atelopus niche modelling/single_SDM/**
 # ---- ...but keep the scripts folder and everything inside it ----
 !Project/Atelopus niche modelling/single_SDM/scripts/
 !Project/Atelopus niche modelling/single_SDM/scripts/**
+
+# inside scripts, ignore cache/temp
+Project/Atelopus niche modelling/single_SDM/scripts/gadm_cache/
+Project/Atelopus niche modelling/single_SDM/scripts/**/gadm_cache/
+Project/Atelopus niche modelling/single_SDM/scripts/Atelopus.ignescens
+Project/Atelopus niche modelling/single_SDM/scripts/**/Atelopus.ignescens
