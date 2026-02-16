@@ -1,0 +1,147 @@
+---
+title: "Processing land cover data from MAPBIOMAS Ecuador"
+author: "Andres Marmol"
+date: "2026-02-16"
+output: html_document
+---
+
+```{r}
+library(terra)
+library(sf)
+library(here)
+```
+
+# 1. land cover recategorization
+
+Given the more granular format of the Land cover file, it is necessary to bring it to the same scale as the environmental variables. As a first step, a 2 column matrix is created matching the original categories to those we want to use based on MapBiomas documentation.
+
+```{r}
+
+# matrix
+rcl <- matrix(c(
+  3,  3,
+  4,  3,
+  6,  3,
+
+  11, 12,
+  12, 12,
+  13, 12,
+  29, 12,
+
+  9,  21,
+  21, 21,
+
+  27, 25,
+  30, 25,
+  25, 25,
+
+  31, 33,
+  33, 33,
+  34, 33
+), ncol = 2, byrow = TRUE)
+
+# defining codes and names
+cat_codes <- c(3, 12, 21, 25, 33)
+cat_names <- c("nat_forest", "non_nat_forest", "agriculture", "antropic", "water")
+```
+
+# 2. Creating a function to upscale original land use files! 
+
+## NOTE: this code will break if you do not update 'precip_ai' at the moment it is a raw layer, the environmental layers should be used instead.
+
+```{r}
+process_modal_file <- function(f, precip_ai, rcl, cat_codes, cat_names) {
+
+  message("Reading: ", f)
+  lu1 <- rast(f)
+
+  # If values are stored as floats (e.g., 2.999999), force to integers
+  lu1 <- round(lu1)
+
+  # Limit to study area / template footprint (saves time & RAM)
+  #lu1 <- crop(lu1, template30)
+  #lu1 <- mask(lu1, template30)
+
+  # Reclassify to your 5 categories (anything else -> NA)
+  lu_cat <- classify(lu1, rcl = rcl, others = NA)
+
+  # Proportion per 30" pixel for each category:
+  # (0/1 mask at 1") -> resample average to 30" => proportion
+  lu_cat30 <- rast(lapply(cat_codes, function(k) {
+    m <- as.numeric(lu_cat == k)
+    resample(m, precip_ai, method = "average")
+  }))
+
+  names(lu_cat30) <- cat_names
+
+  # Keep NA footprint identical to template
+  lu_cat30 <- mask(lu_cat30, precip_ai)
+
+  # --------- Output naming ---------
+  # Input pattern: (text1)_modal_(yy1)_(yy2).tif
+  # Output name  : landcover_30arc_(yy1)_(yy2).tif
+  base <- tools::file_path_sans_ext(basename(f))
+
+  m <- regexec(".*_modal_(\\d{2})_(\\d{2}).*", base)
+  yrs <- regmatches(base, m)[[1]]
+
+  if (length(yrs) == 3) {
+    yy1 <- yrs[2]
+    yy2 <- yrs[3]
+    out_file <- file.path(dirname(f), sprintf("landcover_30arc_%s_%s.tif", yy1, yy2))
+  } else {
+    # Fallback (won't crash if a filename doesn't match)
+    out_file <- file.path(dirname(f), paste0(base, "_lu_cat30.tif"))
+  }
+
+  message("Writing: ", out_file)
+  writeRaster(
+    lu_cat30,
+    filename = out_file,
+    overwrite = TRUE,
+    wopt = list(gdal = c("COMPRESS=DEFLATE", "PREDICTOR=2", "ZLEVEL=9"))
+  )
+
+  invisible(out_file)
+}
+
+```
+
+# 3. Parsing all models with the name modal
+Original files by Dome have been named modal.
+```{r}
+root_dir = here()
+
+modal_files <- list.files(
+  root_dir,
+  pattern="modal.*\\.tif(f)?$",
+  full.names = TRUE,
+  recursive = TRUE,
+  ignore.case = TRUE
+)
+
+message("found ", length(modal_files), " modal file(s).")
+```
+
+# 4. Running the loop
+
+```{r}
+out_files <- character(0)
+
+for (f in modal_files) {
+  out <- tryCatch(
+    process_modal_file(f, precip_ai, rcl, cat_codes, cat_names),
+    error = function(e) {
+      message("FAILED: ", f, " | ", e$message)
+      NA_character_
+    }
+  )
+  out_files <- c(out_files, out)
+}
+
+out_files <- out_files[!is.na(out_files)]
+
+message("Wrote ", length(out_files), " output file(s).")
+out_files
+```
+

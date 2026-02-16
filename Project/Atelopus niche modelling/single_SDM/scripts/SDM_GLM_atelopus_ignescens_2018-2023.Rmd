@@ -76,7 +76,11 @@ gbif_ai <- gbif_ai$data
 This dataset contains all the distribution points + collected over 2021-2022 by Alianza Jambato, Mateo Vega and Amanda Quezada.
 
 ```{r}
-aj_ai <- read.csv(here("2018 - 2023", "occ_2018_2023.csv"))
+#project structure folder:
+proj_root <- '/Alianza_Jambato_Git/Project/Atelopus niche modelling/single_SDM'
+
+aj_ai <- read.csv(here("Project", "Atelopus niche modelling", "single_SDM",
+                       "2018 - 2023", "occ_2018_2023.csv"))
 aj_ai$countryCode = "EC"
 aj_ai$stateProvince = "Cotopaxi"
 ```
@@ -201,16 +205,49 @@ plot(occ_sel, add = TRUE)
 
 ### 2.1 calling environmental and land use datasets
 
-These datasets have been already pre-processed. They all come from Chelsa Monthly Climate Data while Land Use comes from MapBIOMAS Ecuador 3.0. DEM has been extracted from LandSat (Confirm this with Dome)
+These datasets have been already pre-processed. They all come from Chelsa Monthly Climate Data while Land Use comes from MapBIOMAS Ecuador 3.0. DEM has been extracted from LandSat (Confirm this with Dome).
+
+A presing problem is that tiff files are not categorical, meaning that the interpretation of the results are not possible under this way. MapBiomas, unfortunately provides maps that are characterised as continuous categories, or at least that is how Terra and QGiS interprets them. Thus, they require a prior step before entering to the loop, as the numbers must be turned into categories, and named according its [documentation](https://ecuador.mapbiomas.org/wp-content/uploads/sites/7/2025/10/ATBD-Ecuador-Coleccion-3.0-ES.pdf#page=20.75 "MapBiomas Ecuador documentation").
+
+here is the code:
+
+```{r}
+# calling raster
+lu <- rast(here("Project", "Atelopus niche modelling", "single_SDM", "2018 - 2023", "aligned_modal_18_23_crop.tif"))
+
+# extracting pixel values from tiff to object vals
+vals = sort(unique(values(lu))) 
+
+# entering category name for each of the values within the raster following MapBiomas Documentation
+labs <- c("Forest", "Open forest", "Flooded forest", "Silviculture",
+          "Non-Forest Wetland", "Grassland", "Other Non-Forest Natural formation",
+          "Mosaics of Uses", "Antropic non-vegetated areas", "Not observed",
+          "Rocky outcrop", "Mining", "Aquaculture", "River, lake and ocean", "Glacier")
+
+# Transforming continuous values to categories (as.factor)
+lu_cat <- as.factor(lu)
+
+# creating dataframe with names for each value
+lev <- data.frame(ID = vals, land_cover = labs)
+
+# incorporating this to GEOtiff
+levels(lu_cat) <- lev
+
+# Writing the resulting tiff file
+writeRaster(lu_cat, here("Project", "Atelopus niche modelling", "single_SDM", "2018 - 2023", "aligned_LU_18_23_crop.tif"), overwrite = TRUE, wopt = list(gdal = c("COMPRESS=LZW")))
+
+```
 
 ```{r}
 ### 2.1 Define Environmental Predictors
+
 # List of paths to the environmental variables (rasters)
-myExpl <- here("2018 - 2023" , c("aligned_tmax_2018_end.tif", # Max. Temperature
+myExpl <- here("Project", "Atelopus niche modelling", "single_SDM", "2018 - 2023" ,c(
+                               "aligned_tmax_2018_end.tif", # Max. Temperature
                                "aligned_tmin_2018_end.tif", # Min. Temperature
                                "aligned_pr_2018_end.tif", # Precipitation
-                               "aligned_modal_18_23_crop.tif", # Land Use/Cover
-                               "aligned_DEM_end.tif" # Digital Elevation Model
+                               "aligned_LU_18_23_crop.tif"#, # Land Use/Cover
+                               #"aligned_DEM_end.tif" # Digital Elevation Model
                                )
 )
 
@@ -372,7 +409,7 @@ myBiomodModelOut <- BIOMOD_Modeling(bm.format = ai_biomod,
 )
 
 # Optional: Get the evaluation scores
-get_evaluations(myBiomodModelOut)
+ai_eval <- get_evaluations(myBiomodModelOut)
 ```
 
 5.  **Projecting the Model**
@@ -401,10 +438,6 @@ Sys.time() - t1
 ```{r}
 bm_PlotEvalMean(bm.out = myBiomodModelOut)
 ```
-
-
-
-
 
 6.  **Save and Visualize Results**
 
