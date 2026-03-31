@@ -19,3 +19,12 @@ Project/Atelopus niche modelling/single_SDM/scripts/gadm_cache/
 Project/Atelopus niche modelling/single_SDM/scripts/**/gadm_cache/
 Project/Atelopus niche modelling/single_SDM/scripts/Atelopus.ignescens
 Project/Atelopus niche modelling/single_SDM/scripts/**/Atelopus.ignescens
+# ---- ...but keep input_data subfolders and CSVs ----
+
+!Project/Atelopus niche modelling/single_SDM/input_data/
+!Project/Atelopus niche modelling/single_SDM/input_data/Chelsa_monthly_climate/
+!Project/Atelopus niche modelling/single_SDM/input_data/Chelsa_monthly_climate/**
+!Project/Atelopus niche modelling/single_SDM/input_data/Ecuador_DEM/
+!Project/Atelopus niche modelling/single_SDM/input_data/Ecuador_DEM/**
+!Project/Atelopus niche modelling/single_SDM/input_data/*.csv
+!Project/Atelopus niche modelling/single_SDM/input_data/*.txt
