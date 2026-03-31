@@ -4,31 +4,31 @@
 \
 \`\`\`
 
-`Alianza_Jambato_Git/`
-`└── Projects/`
-`    ├── Mark recapture/`
-`    │   ├── input_data/`
-`    │   │   ├── ai_dataset.csv`
-`    │   │   ├── Prec.csv`
-`    │   │   └── Temp.csv`
-`    │   └── output/`
-`    │       └── ai_popan_model.Rmd`
-`    │`
-`    ├── Atelopus niche modelling/`
-`    │   └── single_SDM/`
-`    │       ├── README.md`
-`    │       ├── input_data/`
-`    │       │   ├── Ecuador_DEM/`
-`    │       │   ├── Chelsa_monthly_climate/`
-`    │       │   └── other_files/`
-`    │       ├── outputs/`
-`    │       └── scripts/`
-`    │           ├── Atelopus.ignescens/`
-`    │           └── gadm_cache/`
-`    │`
-`    ├── Centrolene Buckleyi/`
-`    │`
-`    └── weather_station_data/`\
+Alianza_Jambato_Git/
+└── Projects/
+    ├── Mark recapture/
+    │   ├── input_data/
+    │   │   ├── ai_dataset.csv
+    │   │   ├── Prec.csv
+    │   │   └── Temp.csv
+    │   └── output/
+    │       └── ai_popan_model.Rmd
+    │`
+    ├── Atelopus niche modelling/
+    │   └── single_SDM/
+    │       ├── README.md
+    │       ├── input_data/
+    │       │   ├── Ecuador_DEM/
+    │       │   ├── Chelsa_monthly_climate/
+    │       │   └── other_files/
+    │       ├── outputs/
+    │       └── scripts/
+    │           ├── Atelopus.ignescens/
+    │           └── gadm_cache/
+    │
+    ├── Centrolene Buckleyi/
+    │
+    └── weather_station_data/
 \`\`\`
 
 # Repository curation:
