@@ -10,7 +10,7 @@ editor_options:
 
 # Species Distribution Model — *Atelopus ignescens* (Jambato toad)
 
-**Authors:** Domenica G. Cevallos & Andrés Mármol-Guijarro \
+**Authors:** Domenica G. Cevallos & Andrés Mármol-Guijarro\
 **Project:** Alianza Jambato — Single-species SDM for two time periods
 (1985–1990 and 2018–2021)
 
@@ -353,7 +353,7 @@ loaded via a namespace (and not attached):
 ## R package dependencies
 
 | Package             | Purpose                                              |
-|----------------------|--------------------------------------------------|
+|---------------------|------------------------------------------------------|
 | `terra`             | Raster and vector spatial operations                 |
 | `raster`            | Legacy compatibility with `biomod2`                  |
 | `sf`                | Simple features vector data                          |

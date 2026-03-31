@@ -1,0 +1,757 @@
+---
+title: "Mark-recapture analysis of the standardised monitoring of *Atelopus ignescens*"
+author: "Camila Freire & Andrés Mármol-Guijarro"
+date: "2026-01-20"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
+
+library(tidyverse)
+library(lubridate)
+library(janitor)
+library(stringr)
+library(readr)
+library(scales)
+library(here)
+library(RMark)
+library(knitr)
+library(kableExtra)
+library(gt)
+library(officer)
+library(flextable)
+
+# Shared paths
+input_dir  <- here("Project", "Mark recapture", "input_data")
+output_dir <- here("Project", "Mark recapture", "output")
+```
+
+## Data loading
+
+```{r load-data}
+df <- read.csv(file.path(input_dir, "ai_dataset.csv"), header = TRUE)
+
+head(df, 2)
+```
+
+## Data cleaning
+
+```{r clean-names}
+df_clean <- janitor::clean_names(df)
+
+names(df_clean)
+```
+
+### Standardise sex codes and parse dates
+
+```{r clean-sex-dates}
+# Standardise sex codes to M / F / I / U
+df_clean <- df_clean |>
+  mutate(
+    sexo = toupper(sexo),
+    sexo = dplyr::recode(sexo,
+                         "M" = "M",   # male
+                         "H" = "F",   # female
+                         "I" = "I",   # undetermined
+                         .default = "U")
+  )
+
+# Parse fecha from character to Date, trying multiple formats
+df_clean <- df_clean |>
+  mutate(
+    fecha_parsed = parse_date_time(
+      fecha,
+      orders = c("Y-m-d", "Y/m/d", "d/m/Y", "d-m-Y", "m/d/Y", "m-d-Y"),
+      tz = "UTC"
+    ) |> as_date()
+  )
+
+summary(df_clean$fecha_parsed)
+```
+
+## Building the capture history
+
+### Collapse to individual × month
+
+```{r individual-month}
+df_month <- df_clean |>
+  filter(!is.na(id), !is.na(fecha_parsed)) |>
+  mutate(month = floor_date(fecha_parsed, "month")) |>
+  distinct(id, month)
+
+head(df_month)
+```
+
+### Full sequence of months in the study
+
+```{r month-sequence}
+# Exclude December 2024 (no sampling that month)
+all_months <- tibble(
+  month = seq(min(df_month$month), max(df_month$month), by = "month")
+) |>
+  filter(!(year(month) == 2024 & month(month) == 12))
+```
+
+### Presence / absence matrix
+
+```{r presence-absence}
+# Ensure every id has a row for every month; mark presence (1) / absence (0)
+det_full <- expand_grid(id = unique(df_month$id), month = all_months$month) |>
+  left_join(df_month |> mutate(present = 1L), by = c("id", "month")) |>
+  mutate(present = replace_na(present, 0L))
+
+# Pivot to wide 0/1 table
+mat_df <- det_full |>
+  arrange(id, month) |>
+  mutate(month_lab = format(month, "%Y_%m")) |>
+  select(id, month_lab, present) |>
+  pivot_wider(names_from = month_lab, values_from = present, values_fill = 0L) |>
+  arrange(id)
+
+cap_matrix <- mat_df |>
+  tibble::column_to_rownames("id") |>
+  as.matrix()
+```
+
+### Create capture-history strings
+
+```{r capture-history}
+ch_tbl <- mat_df |>
+  mutate(ch = apply(select(mat_df, -id), 1, paste0, collapse = "")) |>
+  select(id, ch)
+```
+
+### Extract individual covariates
+
+```{r covariates}
+# One sex and age record per id (first non-missing observation)
+covs <- df_clean |>
+  select(id, sexo, edad) |>
+  group_by(id) |>
+  summarise(
+    sexo = dplyr::first(sexo[!is.na(sexo)], default = NA_character_),
+    edad = dplyr::first(edad[!is.na(edad)], default = NA_character_),
+    .groups = "drop"
+  )
+
+# Final RMark input table
+rmark_df <- ch_tbl |>
+  left_join(covs, by = "id") |>
+  mutate(freq = 1L)
+```
+
+## POPAN open-population model
+
+### Process data and build design matrix
+
+```{r process-data}
+aipop.process <- process.data(
+  rmark_df,
+  model         = "POPAN",
+  time.interval = c(rep(1, 15), 2, rep(1, 5))
+)
+
+aipop.ddl <- make.design.data(aipop.process)
+
+aipop.ddl
+```
+
+### Define and run candidate models
+
+Three candidate models are compared, crossing constant vs. time-varying
+formulations for survival (Phi), detection probability (p), and entry
+probability (pent). Superpopulation size (N) is always constant.
+
+```{r define-models}
+run.ai <- function() {
+
+  # Survival (Phi)
+  Phi.dot  <- list(formula = ~1)
+  Phi.time <- list(formula = ~time)
+
+  # Detection probability (p)
+  p.dot  <- list(formula = ~1)
+  p.time <- list(formula = ~time)
+
+  # Entry probability (pent)
+  pent.dot  <- list(formula = ~1)
+  pent.time <- list(formula = ~time)
+
+  # Superpopulation size (N)
+  N.dot <- list(formula = ~1)
+
+  # Model 1: all parameters constant
+  phi.dot.p.dot.pent.dot.N <- mark(
+    aipop.process, aipop.ddl,
+    model.parameters = list(Phi = Phi.dot, p = p.dot, pent = pent.dot, N = N.dot)
+  )
+
+  # Model 2: Phi and pent time-varying, p constant
+  phi.time.p.dot.pent.time.N <- mark(
+    aipop.process, aipop.ddl,
+    model.parameters = list(Phi = Phi.time, p = p.dot, pent = pent.time, N = N.dot)
+  )
+
+  # Model 3: all parameters time-varying
+  phi.time.p.time.pent.time.N <- mark(
+    aipop.process, aipop.ddl,
+    model.parameters = list(Phi = Phi.time, p = p.time, pent = pent.time, N = N.dot)
+  )
+
+  return(collect.models())
+}
+```
+
+```{r run-models, results='hide', message=FALSE}
+ai.results <- run.ai()
+```
+
+### Model selection table
+
+```{r model-table}
+options(width = 150)
+ai.results
+```
+
+## Results from the top model
+
+The top model is `phi.time.p.dot.pent.time.N`, in which survival and entry
+probability vary over time but detection probability is held constant. This
+assumes that all sampling events were conducted by the same observers, that
+weather conditions do not influence recapture probability, and that site
+conditions have remained stable over the study period.
+
+```{r top-model}
+top <- ai.results$phi.time.p.dot.pent.time.N
+
+summary(top, showall = FALSE)
+
+round(top$results$real[, 1:4], 2)
+```
+
+### Survival probability (Phi)
+
+```{r phi}
+top.phi <- top$results$real[1:21, ]
+top.phi
+```
+
+### Detection probability (p)
+
+```{r p}
+top.p <- top$results$real[22, ]
+top.p
+```
+
+### Entry probability (pent)
+
+```{r pent}
+top.pent <- top$results$real[24:44, ]
+round(top.pent[, 1:4], 5)
+```
+
+### Superpopulation size (N)
+
+```{r N}
+top.N <- top$results$real[23, ]
+top.N
+```
+
+## Derived abundance estimates per sampling occasion
+
+```{r entry-proportions}
+# b:  probability of entry per occasion
+# bo: proportion of the population present at t1
+b  <- top.pent$estimate
+bo <- 1 - sum(top.pent$estimate)
+
+round(c(bo, b), 4)
+```
+
+```{r abundance-per-occasion}
+# Number of new entrants per occasion: B.occ = b × N
+B.occ     <- b * top.N$estimate
+B.occ_inf <- b * top.N$estimate - b * top.N$se
+B.occ_upp <- b * top.N$estimate + b * top.N$se
+
+# Initial cohort at t1: B0 = bo × N
+B0     <- bo * top.N$estimate
+B0_inf <- bo * top.N$estimate - bo * top.N$se
+B0_upp <- bo * top.N$estimate + bo * top.N$se
+
+# N per sampling occasion
+N_occ <- c(B0, B.occ)
+N_inf <- c(B0_inf, B.occ_inf)
+N_upp <- c(B0_upp, B.occ_upp)
+```
+
+```{r plot-dataframe}
+# Assemble all derived parameters into a single plot dataframe
+survival <- c(NA, top.phi$estimate)
+s_inf    <- c(NA, top.phi$estimate - top.phi$se)
+s_upp    <- c(NA, top.phi$estimate + top.phi$se)
+
+entry <- c(NA, top.pent$estimate)
+e_inf <- c(NA, top.pent$estimate - top.pent$se)
+e_upp <- c(NA, top.pent$estimate + top.pent$se)
+
+df_plot <- data.frame(N_occ, N_inf, N_upp, survival, s_inf, s_upp, entry, e_inf, e_upp)
+
+# Insert NA row to represent the 2-month gap between occasions 16 and 17
+na_row        <- as.data.frame(as.list(rep(NA, ncol(df_plot))))
+names(na_row) <- names(df_plot)
+
+df_plot2           <- rbind(df_plot[1:16, ], na_row, df_plot[17:nrow(df_plot), ])
+rownames(df_plot2) <- NULL
+
+round(df_plot2, 1)
+
+# Assign monthly dates starting August 2023
+df_plot2$month_year <- seq(
+  from       = as.Date("2023-08-01"),
+  by         = "month",
+  length.out = nrow(df_plot2)
+)
+```
+
+## Figures
+
+### Individuals per sampling occasion vs. survival probability
+
+```{r plot-survival}
+scale_factor <- quantile(df_plot2$N_occ, 0.95, na.rm = TRUE) /
+                quantile(df_plot2$survival, 0.95, na.rm = TRUE)
+
+ylim_left  <- c(0, max(df_plot2$N_upp, na.rm = TRUE) * 1.1)
+ylim_right <- c(0, max(df_plot2$survival, na.rm = TRUE) * 1.1)
+
+ggplot(df_plot2, aes(x = month_year)) +
+
+  # Blue bars: estimated individuals
+  geom_col(aes(y = N_occ),
+           fill = "#0072B2", color = "#0072B2",
+           linewidth = 0.1, width = 6.5, alpha = 0.55, na.rm = TRUE) +
+  geom_errorbar(aes(ymin = N_inf, ymax = N_upp),
+                width = 0.15, color = "#002244", linewidth = 0.5, na.rm = TRUE) +
+
+  # Orange line: survival probability
+  geom_errorbar(aes(ymin = s_inf * scale_factor, ymax = s_upp * scale_factor),
+                width = 0.2, color = "#D55E00", na.rm = TRUE) +
+  geom_point(aes(y = survival * scale_factor),
+             color = "#D55E00", size = 3, na.rm = TRUE) +
+  geom_line(aes(y = survival * scale_factor),
+            color = "#D55E00", linewidth = 1, na.rm = TRUE) +
+
+  geom_vline(xintercept = as.Date("2024-09-01"),
+             color = "#D55E00", linetype = "dashed", linewidth = 1) +
+
+  scale_x_date(date_breaks = "1 month", date_labels = "%b-%Y",
+               expand = c(0.01, 0.01)) +
+  scale_y_continuous(
+    name     = "Individuals per sampling event",
+    limits   = ylim_left,
+    sec.axis = sec_axis(~ . / scale_factor,
+                        name   = "Prob. survival to next sampling event",
+                        breaks = seq(0, max(ylim_right), length.out = 5))
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    axis.title.y       = element_text(color = "#0072B2", size = 13, face = "bold"),
+    axis.title.y.right = element_text(color = "#D55E00", size = 13, face = "bold"),
+    axis.text.x        = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 10),
+    axis.text.y        = element_text(size = 10, color = "#0072B2"),
+    axis.text.y.right  = element_text(size = 10, color = "#D55E00"),
+    panel.grid.major   = element_line(color = "gray85", linewidth = 0.5),
+    panel.grid.minor   = element_line(color = "gray90", linewidth = 0.3),
+    axis.line          = element_line(color = "black", linewidth = 0.6),
+    panel.background   = element_rect(fill = "gray97", color = NA),
+    plot.background    = element_rect(fill = "white", color = NA)
+  )
+```
+
+### Load meteorological data
+
+```{r load-met}
+df_prec <- read_csv(file.path(input_dir, "Prec.csv")) |>
+  mutate(mes = as.Date(mes))
+
+df_temp <- read_csv(file.path(input_dir, "Temp.csv")) |>
+  mutate(mes = as.Date(mes))
+
+max_occ  <- max(df_plot2$N_occ, na.rm = TRUE)
+max_prec <- max(df_prec$precipitacion_total, na.rm = TRUE)
+max_temp <- max(df_temp$temp_med, na.rm = TRUE)
+```
+
+### Individuals vs. precipitation (exploratory)
+
+```{r plot-met-exploratory}
+scale_prec <- max_occ / max_prec
+scale_temp <- max_occ / max_temp
+
+ggplot() +
+
+  # Blue line: individuals
+  geom_errorbar(data = df_plot2,
+                aes(x = month_year, ymin = N_inf, ymax = N_upp),
+                width = 0.2, color = "#0072B2", na.rm = TRUE) +
+  geom_point(data = df_plot2, aes(x = month_year, y = N_occ),
+             color = "#0072B2", size = 3, na.rm = TRUE) +
+  geom_line(data = df_plot2, aes(x = month_year, y = N_occ),
+            color = "#0072B2", linewidth = 1, na.rm = TRUE) +
+
+  # Green line: precipitation
+  geom_line(data = df_prec,
+            aes(x = mes, y = precipitacion_total * scale_prec),
+            color = "#009E73", linewidth = 1.2, na.rm = TRUE) +
+  geom_point(data = df_prec,
+             aes(x = mes, y = precipitacion_total * scale_prec),
+             color = "#009E73", size = 3, na.rm = TRUE) +
+
+  # Orange line: temperature
+  geom_line(data = df_temp,
+            aes(x = mes, y = temp_med * scale_temp),
+            color = "#D55E00", linewidth = 1.2, na.rm = TRUE) +
+  geom_point(data = df_temp,
+             aes(x = mes, y = temp_med * scale_temp),
+             color = "#D55E00", size = 3, na.rm = TRUE) +
+
+  scale_x_date(date_breaks = "1 month", date_labels = "%b-%Y",
+               expand = c(0.01, 0.01)) +
+  scale_y_continuous(
+    name     = "Individuos por evento de muestreo",
+    sec.axis = sec_axis(~ . / scale_prec,
+                        name = "Precipitación (mm) / Temperatura (°C)")
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    axis.title.y       = element_text(color = "#0072B2", size = 13, face = "bold"),
+    axis.title.y.right = element_text(color = "black", size = 13, face = "bold"),
+    axis.text.x        = element_text(angle = 90, vjust = 0.5, hjust = 1, size = 10),
+    axis.text.y        = element_text(size = 10, color = "#0072B2"),
+    axis.text.y.right  = element_text(size = 10),
+    panel.grid.major   = element_line(color = "gray85", linewidth = 0.5),
+    panel.grid.minor   = element_line(color = "gray90", linewidth = 0.3),
+    axis.line          = element_line(color = "black", linewidth = 0.6),
+    panel.background   = element_rect(fill = "gray97", color = NA),
+    plot.background    = element_rect(fill = "white", color = NA)
+  )
+```
+
+### Individuals vs. temperature
+
+```{r plot-temperature}
+scale_temp <- max_occ / max(df_temp$temp_med1, na.rm = TRUE)
+
+plottem <- ggplot() +
+
+  # Blue bars: estimated individuals
+  geom_bar(data = df_plot2,
+           aes(x = month_year, y = N_occ),
+           stat = "identity", fill = "#0072B2", color = "#0072B2", width = 15) +
+  geom_errorbar(data = df_plot2,
+                aes(x = month_year, ymin = N_inf, ymax = N_upp),
+                width = 0.2, color = "black") +
+
+  # Orange line: temperature
+  geom_line(data = df_temp,
+            aes(x = mes, y = temp_med * scale_temp),
+            color = "#D55E00", linewidth = 1.2) +
+  geom_point(data = df_temp,
+             aes(x = mes, y = temp_med * scale_temp),
+             color = "#D55E00", size = 3) +
+
+  scale_x_date(date_breaks = "1 month", date_labels = "%b-%Y",
+               expand = c(0.01, 0.01)) +
+  scale_y_continuous(
+    name     = "Individuos por evento de muestreo",
+    breaks   = seq(0, 30, by = 5),
+    sec.axis = sec_axis(~ . / scale_temp, name = "Temperatura promedio (°C)")
+  ) +
+  theme_minimal(base_size = 13) +
+  theme(
+    axis.title.y       = element_text(color = "#0072B2", face = "bold"),
+    axis.title.y.right = element_text(color = "#D55E00", face = "bold"),
+    axis.text.x        = element_text(angle = 90, vjust = 0.5, hjust = 1),
+    panel.grid.major   = element_line(color = "gray85"),
+    panel.grid.minor   = element_line(color = "gray90"),
+    panel.background   = element_rect(fill = "gray97", color = NA),
+    axis.line.x        = element_line(color = "black", linewidth = 1),
+    axis.line.y        = element_line(color = "black", linewidth = 1),
+    axis.ticks.x       = element_line(color = "black", linewidth = 0.6),
+    axis.ticks.y       = element_line(color = "black", linewidth = 0.6)
+  )
+
+ggsave(
+  filename = file.path(output_dir, "Grafica_individuos_tem.png"),
+  plot = plottem, width = 10, height = 6, dpi = 300
+)
+
+plottem
+```
+
+### Combined: individuals, precipitation and temperature
+
+```{r plot-met-combined}
+scale_temp <- max_prec / max_temp
+scale_occ  <- max_prec / max_occ
+
+plot_met <- ggplot() +
+
+  # Precipitation bars
+  geom_col(data = df_prec,
+           aes(x = mes, y = precipitacion_total, fill = "Precipitación (mm)"),
+           alpha = 0.6) +
+
+  # Temperature line
+  geom_line(data = df_temp,
+            aes(x = mes, y = temp_med * scale_temp, color = "Temperatura (°C)"),
+            linewidth = 1.3) +
+  geom_point(data = df_temp,
+             aes(x = mes, y = temp_med * scale_temp, color = "Temperatura (°C)"),
+             size = 3) +
+
+  # Individuals line
+  geom_line(data = df_plot2,
+            aes(x = month_year, y = N_occ * scale_occ, color = "Individuos"),
+            linewidth = 1.3) +
+  geom_point(data = df_plot2,
+             aes(x = month_year, y = N_occ * scale_occ, color = "Individuos"),
+             size = 3) +
+
+  geom_vline(xintercept = as.Date("2024-09-01"),
+             color = "red", linetype = "dashed", linewidth = 1) +
+
+  scale_x_date(date_breaks = "1 month", date_labels = "%b-%Y",
+               expand = c(0.01, 0.01)) +
+  scale_y_continuous(
+    name     = "Precipitación total (mm)",
+    sec.axis = sec_axis(~ . / scale_temp,
+                        name = "Temperatura (°C) / Individuos por muestreo")
+  ) +
+  scale_fill_manual(values  = c("Precipitación (mm)" = "#56B4E9"), name = NULL) +
+  scale_color_manual(values = c("Temperatura (°C)" = "#D55E00",
+                                "Individuos"       = "#0072B2"), name = NULL) +
+  theme_minimal(base_size = 13) +
+  theme(
+    axis.title.y       = element_text(color = "black", face = "bold"),
+    axis.title.y.right = element_text(color = "black", face = "bold"),
+    axis.text.x        = element_text(angle = 90, vjust = 0.5, hjust = 1),
+    axis.text.y        = element_text(color = "black"),
+    axis.text.y.right  = element_text(color = "black"),
+    panel.grid.major   = element_line(color = "gray85"),
+    panel.grid.minor   = element_line(color = "gray90"),
+    panel.background   = element_rect(fill = "gray97", color = NA),
+    plot.background    = element_rect(fill = "white", color = NA),
+    axis.line          = element_line(color = "black", linewidth = 0.6),
+    legend.position    = "right",
+    legend.box         = "vertical",
+    legend.text        = element_text(size = 12)
+  )
+
+ggsave(
+  filename = file.path(output_dir, "Grafica_individuos_met_f.png"),
+  plot = plot_met, width = 10, height = 6, dpi = 300
+)
+
+plot_met
+```
+
+## Descriptive capture summary
+
+### Prepare capture table
+
+```{r capture-summary}
+# Re-process df for cross-month recapture tagging
+df <- df |>
+  clean_names() |>
+  mutate(
+    fecha      = parse_date_time(fecha, orders = c("dmy", "ymd", "mdy")),
+    month_date = floor_date(as_date(fecha), "month"),
+    sexo       = str_squish(str_to_lower(sexo)),
+    sex_grp    = case_when(
+      str_starts(sexo, "m") ~ "male",
+      str_starts(sexo, "h") ~ "female",
+      TRUE                  ~ "indef"
+    )
+  ) |>
+  filter(!is.na(month_date), !is.na(id))
+
+# Full month sequence
+all_months <- tibble(
+  month_date = seq(min(df$month_date), max(df$month_date), by = "month")
+)
+
+# First month each individual was seen
+first_seen <- df |>
+  group_by(id) |>
+  summarise(first_month = min(month_date), .groups = "drop")
+
+# Tag recaptures
+df_tag <- df |>
+  left_join(first_seen, by = "id") |>
+  mutate(is_recapture = month_date > first_month)
+
+# Overall per-month totals
+overall <- df_tag |>
+  group_by(month_date) |>
+  summarise(
+    total_captures   = n(),
+    total_recaptures = n_distinct(id[is_recapture]),
+    .groups = "drop"
+  )
+
+# Per-sex captures & recaptures, wide layout
+by_sex <- df_tag |>
+  group_by(month_date, sex_grp) |>
+  summarise(
+    captures   = n(),
+    recaptures = n_distinct(id[is_recapture]),
+    .groups = "drop"
+  ) |>
+  pivot_wider(
+    names_from  = sex_grp,
+    values_from = c(captures, recaptures),
+    values_fill = 0
+  )
+
+# Combine, fill zero months, add month label
+summary_tbl <- all_months |>
+  left_join(overall, by = "month_date") |>
+  left_join(by_sex,  by = "month_date") |>
+  replace_na(list(
+    total_captures    = 0, total_recaptures  = 0,
+    captures_male     = 0, recaptures_male   = 0,
+    captures_female   = 0, recaptures_female = 0,
+    captures_indef    = 0, recaptures_indef  = 0
+  )) |>
+  arrange(month_date) |>
+  mutate(month = format(month_date, "%b-%Y")) |>
+  select(
+    month,
+    total_captures,   total_recaptures,
+    captures_male,    recaptures_male,
+    captures_female,  recaptures_female,
+    captures_indef,   recaptures_indef
+  )
+
+summary_tbl
+```
+
+### Table: HTML (gt)
+
+```{r table-gt}
+summary_tbl |>
+  gt() |>
+  tab_header(
+    title    = "Monthly captures and recaptures",
+    subtitle = "By sex and category"
+  ) |>
+  cols_label(
+    month             = "Month",
+    total_captures    = "Total captures",
+    total_recaptures  = "Total recaptures",
+    captures_male     = "Males captured",
+    recaptures_male   = "Males recaptured",
+    captures_female   = "Females captured",
+    recaptures_female = "Females recaptured",
+    captures_indef    = "Indef. captured",
+    recaptures_indef  = "Indef. recaptured"
+  ) |>
+  fmt_number(columns = -month, decimals = 0) |>
+  tab_options(table.font.size = px(11))
+```
+
+### Table: LaTeX (kableExtra)
+
+```{r table-latex}
+summary_tbl |>
+  kable(format = "latex", booktabs = TRUE,
+        caption = "Monthly captures and recaptures of Atelopus sp.") |>
+  kable_styling(latex_options = c("striped", "hold_position"))
+```
+
+### Export to Word
+
+```{r table-docx}
+ft <- flextable(summary_tbl)
+save_as_docx(ft, path = file.path(output_dir, "summary_table_DT.docx"))
+```
+
+## Individuals (model estimate + observed captures) vs. precipitation
+
+Add observed captures to the plot dataframe.
+
+```{r add-observed-captures}
+df_plot2$total_captures <- summary_tbl$total_captures
+```
+
+```{r plot-precipitation-final}
+df_plot2 <- df_plot2 |> mutate(month_year = as.Date(month_year))
+df_prec  <- df_prec  |> mutate(mes = as.Date(mes))
+
+scale_prec <- max_occ / max(df_prec$precipitacion_total, na.rm = TRUE)
+
+# Long format for side-by-side bars
+df_bars <- df_plot2 |>
+  select(month_year, N_occ, total_captures, N_inf, N_upp) |>
+  pivot_longer(
+    cols      = c(N_occ, total_captures),
+    names_to  = "serie",
+    values_to = "valor"
+  ) |>
+  mutate(serie = recode(serie,
+                        N_occ          = "Estimación (modelo)",
+                        total_captures = "Capturas (observado)"))
+
+plotpre <- ggplot() +
+  geom_col(data = df_bars,
+           aes(x = month_year, y = valor, fill = serie),
+           position = position_dodge(width = 20), width = 18) +
+  geom_errorbar(data = df_plot2,
+                aes(x = month_year, ymin = N_inf, ymax = N_upp),
+                position = position_dodge(width = 20),
+                width = 3, color = "black") +
+  geom_line(data = df_prec,
+            aes(x = mes, y = precipitacion_total * scale_prec),
+            color = "#009E73", linewidth = 1.2) +
+  geom_point(data = df_prec,
+             aes(x = mes, y = precipitacion_total * scale_prec),
+             color = "#009E73", size = 3) +
+  geom_vline(xintercept = as.numeric(as.Date("2024-07-01")),
+             color = "red", linetype = "dashed", linewidth = 1) +
+  scale_fill_manual(values = c("Estimación (modelo)"  = "#0072B2",
+                               "Capturas (observado)" = "#CF5C36")) +
+  scale_x_date(date_breaks = "1 month", date_labels = "%b-%Y",
+               expand = c(0.01, 0.01)) +
+  scale_y_continuous(
+    name     = "Individuos por evento de muestreo",
+    breaks   = seq(0, 30, by = 5),
+    sec.axis = sec_axis(~ . / scale_prec, name = "Precipitación total (mm)")
+  ) +
+  labs(x = "Mes") +
+  theme_minimal(base_size = 13) +
+  theme(
+    axis.title.y       = element_text(color = "#0072B2", face = "bold"),
+    axis.title.y.right = element_text(color = "#009E73", face = "bold"),
+    axis.text.x        = element_text(angle = 90, vjust = 0.5, hjust = 1),
+    panel.grid.major   = element_line(color = "gray85"),
+    panel.grid.minor   = element_line(color = "gray90"),
+    panel.background   = element_rect(fill = "gray97", color = NA),
+    axis.line.x        = element_line(color = "black", linewidth = 1),
+    axis.line.y        = element_line(color = "black", linewidth = 1),
+    axis.ticks.x       = element_line(color = "black", linewidth = 0.6),
+    axis.ticks.y       = element_line(color = "black", linewidth = 0.6),
+    legend.position      = "top",
+    legend.title         = element_blank(),
+    legend.justification = "center"
+  )
+
+ggsave(
+  filename = file.path(output_dir, "Grafica_individuos_pre_v2.png"),
+  plot = plotpre, width = 10, height = 6, dpi = 300
+)
+
+plotpre
+```
