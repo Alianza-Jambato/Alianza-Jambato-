@@ -7,6 +7,9 @@
 # ---- ONLY inside single_SDM: ignore everything... ----
 Project/Atelopus niche modelling/single_SDM/**
 
+# ---- ...but keep the README ----
+!Project/Atelopus niche modelling/single_SDM/README.md
+
 # ---- ...but keep the scripts folder and everything inside it ----
 !Project/Atelopus niche modelling/single_SDM/scripts/
 !Project/Atelopus niche modelling/single_SDM/scripts/**
