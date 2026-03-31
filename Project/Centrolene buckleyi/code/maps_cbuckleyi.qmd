@@ -1,0 +1,125 @@
+---
+title: "maps_cbuckleyi"
+format: html
+---
+
+```{r}
+library(rgbif)
+library(terra)
+library(CoordinateCleaner)
+library(countrycode)
+library(dplyr)
+```
+
+# downloading ecu shapefile
+```{r}
+# GDAM Admin-1 (provinces) for Ecuador
+ec <- geodata::gadm(country = "ECU", level = 1, path = "gadm_cache")
+
+# Excluding Galapagos
+ec_mainland <- ec[!grepl("Galápagos", ec$NAME_1, ignore.case = TRUE), ]
+```
+
+#downloading gbif data con cetrolene buckleyi
+```{r}
+gbif_cb <- occ_search(
+              scientificName = "Centrolene buckleyi",  # confirmed name of the species
+              hasCoordinate=T,                        # logical argument to choose occ. with coordinates
+              limit= 2000,
+              country = "EC"
+              )
+
+gbif_cb <- gbif_cb$data
+```
+
+# checking for duplicates and outliers:
+
+
+```{r}
+# the package only works with ISO3c country codes (i.e ECU) and gfib is ISO2c (i.e. EC) thus it must be changed.
+
+gbif_cb$countryCode <- countrycode(gbif_cb$countryCode,
+                                 origin = "iso2c",
+                                 destination = "iso3c")
+
+gbif_cb_clean <- clean_coordinates(gbif_cb,
+                                 lon = "decimalLongitude",
+                                 lat = "decimalLatitude",
+                                 countries = "countryCode",
+                                 tests = c("centroids", "duplicates", "outliers"))
+```
+```{r}
+gbif_cb_clean <- gbif_cb_clean %>%
+  filter(.dpl == "TRUE")
+```
+
+```{r}
+plot(gbif_cb_clean)
+```
+```{r}
+plot(ec_mainland)
+occ <- vect(as.data.frame(gbif_cb_clean), geom = c("decimalLongitude", "decimalLatitude"), crs = "EPSG:4326")
+occ <- project(occ, crs(ec_mainland))
+plot(occ, add = TRUE)
+```
+```{r}
+plot(ec_mainland, col = "green")
+plot(occ, "year", add = TRUE, col = heat.colors(length(unique(occ$year))), cex = 0.5)
+```
+
+```{r}
+# bin years into decades
+gbif_cb<- gbif_cb %>%
+  mutate(decade = floor(year / 10) * 10)
+
+dec <- gbif_cb %>%
+  group_by(decade) %>%
+  summarise(n = n())
+```
+
+```{r}
+# plot using ggplot2
+library(ggplot2)
+```
+
+```{r}
+ggplot(dec, aes(x= decade, y = n))+
+  geom_col(fill= "steelblue", alpha = 0.7)+
+  geom_line()+
+  scale_x_continuous(breaks = seq(1930, 2020, by = 10)) +
+  labs(x = "Decade", y="Number of Occurences C. buckleyi")+
+  theme_minimal()
+```
+
+```{r}
+year_counts <- gbif_cb %>%
+  group_by(year) %>%
+  summarise(n = n())
+
+ggplot(year_counts, aes(x = year, y = n)) +
+  geom_col(fill = "steelblue", alpha = 0.7) +
+  geom_line() +
+  scale_x_continuous(breaks = seq(1930, 2020, by = 10)) +
+  labs(x = "Year", y = "Number of occurrences",
+       title = "Occurrence trend by year") +
+  theme_minimal()
+```
+
+```{r}
+gbif_cb <- gbif_cb %>%
+  mutate(fiveyear = floor(year / 5) * 5)
+
+fiveyear_counts <- gbif_cb %>%
+  group_by(fiveyear) %>%
+  summarise(n = n()) %>%
+  filter(fiveyear >= 1930 & fiveyear <= 2020)
+
+ggplot(fiveyear_counts, aes(x = fiveyear, y = n)) +
+  geom_col(fill = "steelblue", alpha = 0.7) +
+  geom_line() +
+  scale_x_continuous(breaks = seq(1930, 2020, by = 5)) +
+  labs(x = "Five-year period", y = "Number of occurrences",
+       title = "Occurrence trend by five-year period") +
+  theme_minimal()
+```
+

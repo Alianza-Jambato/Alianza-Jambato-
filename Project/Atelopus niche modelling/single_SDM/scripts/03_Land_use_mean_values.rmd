@@ -1,0 +1,92 @@
+---
+title: "Land use mean values"
+author: "Andres Marmol"
+date: "2026-02-19"
+output: html_document
+---
+
+# getting the mean values for each land use period
+```{r}
+root_dir <- here("Project", "Atelopus niche modelling", "single_SDM", "input_data")
+out_dir <- here("Project", "Atelopus niche modelling", "single_SDM", "input_data")
+all_files <- list.files(
+  root_dir,
+  pattern = "._coverage_\\d{4}_lu_cat30\\.tif$",
+  full.names = TRUE,
+  recursive = TRUE
+)
+```
+
+```{r}
+# 2. Extract years and create a metadata data frame
+file_meta <- data.frame(path = all_files) %>%
+  mutate(
+    year = as.numeric(str_extract(basename(path), "\\d{4}")),
+    period = case_when(
+      year >= 1985 & year <= 1990 ~ "early",
+      year >= 2018 & year <= 2021 ~ "late",
+      TRUE ~ NA_character_
+    ),
+    period = trimws(tolower(as.character(period)))   # <-- add this
+  ) %>%
+  filter(!is.na(period))
+```
+
+```{r}
+average_multiband_and_save <- function(metadata, period_label, years_text, outdir) {
+  # 1. Ensure the output directory exists
+  if (!dir.exists(outdir)) {
+    dir.create(outdir, recursive = TRUE)
+  }
+
+  # 2. Filter paths for the specific period
+  paths <- metadata$path[metadata$period == period_label]
+  paths <- paths[!is.na(paths) & nzchar(paths)]
+  if (length(paths) == 0) stop("No files found for period_label = '", period_label, "'.")
+
+  # 3. Setup reference info
+  ref_rast <- rast(paths[1])
+  n_bands <- nlyr(ref_rast)
+  band_names <- names(ref_rast)
+
+  # --- complement: exclude the "not observed" band (robust) ---
+  band_names_clean <- tolower(trimws(ifelse(is.na(band_names), "", band_names)))
+  bands_to_use <- which(band_names_clean != "not observed")
+  if (length(bands_to_use) == 0) stop("After removing 'not observed', no bands remain.")
+
+  message("Processing ", length(paths), " files for ", years_text, "...")
+
+  # 4. Loop through each band and average
+  list_of_band_means <- lapply(bands_to_use, function(i) {
+    band_stack <- rast(paths, lyrs = i)
+    return(mean(band_stack, na.rm = TRUE))
+  })
+
+  # 5. Reassemble
+  final_rast <- rast(list_of_band_means)
+  names(final_rast) <- band_names[bands_to_use]
+
+  # 6. Construct the full path using outdir
+  output_filename <- paste0("land_use_Ecuador_", years_text, ".tif")
+  output_path <- file.path(outdir, output_filename)
+
+  # 7. Save with Compression
+  writeRaster(
+    final_rast,
+    filename = output_path,
+    overwrite = TRUE,
+    datatype = "FLT4S",
+    gdal = c("COMPRESS=DEFLATE")
+  )
+
+  message("Saved to: ", output_path)
+  return(final_rast)
+}
+```
+
+```{r}
+# Execute for both periods
+# Execute for both periods using the correct function name and providing out_dir
+mean_85_90 <- average_multiband_and_save(file_meta, "early", "1985-1990", out_dir)
+mean_18_21 <- average_multiband_and_save(file_meta, "late", "2018_2021", out_dir)
+```

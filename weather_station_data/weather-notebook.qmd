@@ -40,6 +40,7 @@ library(ggplot2)
 library(clock)
 library(readr)
 library(lubridate)
+library(here)
 ```
 
 El procesamiento de datos hasta esta fase incluye el poder llamar, harmonizar (e.g. asignar formatos), e integrar las tablas mensuales en un archivo unido. Para esto se deben abrir todos los archivos dentro del repositorio para posteriormente integrarlos.
@@ -49,7 +50,7 @@ El primer paso es llamar a los datos una vez estos sean descargados localmente. 
 ```{r, echo=TRUE, message=FALSE, warning=FALSE}
 # estableciendo la dirección de CSVs en mi computador local
 
-folder_path <- "/Users/andresmarmolguijarro/Downloads/meteor"
+folder_path <- here("weather_station_data", "weather station files")
   
 # enlistando todos los CSVs dentro de este archivo
   

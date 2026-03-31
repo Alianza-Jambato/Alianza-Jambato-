@@ -1,0 +1,312 @@
+---
+title: "climvar_ai_8590"
+author: "Andres Marmol"
+date: "2026-02-20"
+output: html_document
+---
+
+# 1. set seeds for repetability
+
+```{r}
+#seedformat <- 10
+#seedmodel <- 452
+#seedproj <- 794
+```
+
+# 2. Defining the environmental predictors
+
+### 2.1 Uploading DEM and cutting it
+This layer was downloaded from earthexplorer.usgs.gov for a box containing Mainland Ecuador
+
+Calling raw data
+```{r}
+DEM <- here("Project", "Atelopus niche modelling", "single_SDM", "input_data", "Ecuador_DEM", "10s090w_20101117_gmted_mea300.tif")
+ecDEM <- rast(DEM)
+```
+
+cutting DEM to Atelopus ignescens presence based on provinces
+```{r}
+#checking coordinate systems
+crs(ecDEM, describe = TRUE)
+crs(ec_mainland, describe = TRUE)
+
+# cropping and masking DEM
+aiDEM_crop <- crop(ecDEM, ec_mainland)
+aiDEM <- mask(aiDEM_crop, ec_mainland)
+
+plot(aiDEM)
+
+#writeRaster(aiDEM, filename = here("Project", "Atelopus niche modelling", "single_SDM", "input_data", "ai_DEM.tif"), overwrite = TRUE)
+```
+### 2.2 calling environmental and land use datasets
+
+```{r}
+# 2.1 Define Environmental Predictors
+root_file <- here("Project", "Atelopus niche modelling", "single_SDM", "input_data")
+input_files <- list.files(root_file, pattern = ".*2018-2021\\.tif$", full.names = TRUE) # change to 2018-2021 for the other date
+
+# Read predictors (kept as you had it)
+myExpl <- rast(input_files)
+
+# Helper: crop + mask consistently
+crop_mask <- function(x, v) mask(crop(x, v), v)
+
+# Crop/mask predictors
+myExpl <- crop_mask(myExpl, ec_mainland)
+
+# Prepare DEM to match predictor grid
+dem <- crop_mask(aiDEM, ec_mainland)
+
+if (!same.crs(dem, myExpl)) dem <- project(dem, myExpl)
+dem <- resample(dem, myExpl, method = "bilinear")
+
+# Append DEM
+myExpl <- c(myExpl, dem)
+
+# Drop not_observed (handles "not_observed" and "not observed")
+drop_names <- c("not_observed", "not observed", "glacier", "nat_forest", "non_nat_forest", "agriculture", "antropic", "water")
+myExpl <- myExpl[[ !tolower(names(myExpl)) %in% drop_names ]]
+
+# Final names
+names(myExpl) <- c("pr", "tas", "tasmax", "tasmin", "DEM")
+
+names(myExpl)
+```
+
+# 2.3 Variance Inflation factor (VIF)
+
+```{r}
+library(usdm)
+
+# estimating Variance Inflated Factor (VIF) values
+vif_values <- vif(myExpl)
+print(vif_values)
+
+# excluding values through stepwise process
+vif_stepwise <- vifstep(myExpl, th = 10)
+print(vif_stepwise)
+
+# get the names of the safe vars
+kept_vars <- vif_stepwise@results$Variables
+print(kept_vars)
+
+# names of the exluded variables
+excluded <- vif_stepwise@excluded
+print(excluded)
+```
+dropping variables based on the VIFs
+
+```{r}
+myExpl <- myExpl[[kept_vars]]
+
+nlyr(myExpl)
+names(myExpl)
+```
+
+
+
+# 3. Formatting the data to biomod2
+
+first an overview of Atelopus occurence data points
+
+```{r}
+names(ai_occur)
+str(ai_occur)
+```
+
+Now setting the data. Resp.var is the occurence data, often binary (0,1). resp.xy is linked to the coordinates of occurences and expl.var are all the climate, land use variables that will be assessed.
+
+```{r}
+aidata <- BIOMOD_FormatingData(
+  resp.var = ai_occur[["occur"]],
+  resp.xy  = ai_occur[, c("lon", "lat")],
+  expl.var = myExpl,
+  resp.name = "Atelopus.ignescens",
+  PA.nb.rep = 2,
+  PA.nb.absences = 500,
+  PA.strategy = "random",
+  filter.raster = FALSE,
+  seed.val = seedformat
+)
+```
+```{r}
+plot(aidata)
+```
+# 4. Defining modelling options
+
+I am running only a GLM, for its simplicity and interpretability. Other algorithms such as maxent, random forest, etc. can work but also have a higher chance of overfitting.
+
+```{r}
+aiopt <- bm_ModelingOptions(
+  data.type = "binary",
+  models = "GLM",
+  strategy = "bigboss",
+  bm.format = aidata
+)
+```
+# 5. Run individual model
+
+```{r}
+aimodels <- BIOMOD_Modeling(
+  bm.format = aidata,
+  modeling.id = "Atelopus ignescens GLM",
+  models = "GLM",
+  OPT.user = aiopt,
+  
+  CV.strategy = "random",
+  CV.nb.rep = 3,
+  CV.perc = 0.7,
+  
+  metric.eval = c("AUCroc", "TSS"),
+  
+  seed.val = seedmodel,
+  
+  var.import = 3,
+  nb.cpu = 2 
+)
+```
+
+# 6. Model evaluation and optimal thresholds
+
+```{r}
+evals <- get_evaluations(aimodels)
+evals
+```
+
+
+```{r}
+# assesing the models through eval metrics
+
+bm_PlotEvalMean(bm.out = aimodels, group.by = c("run"), dataset = c( "validation"))
+bm_PlotEvalMean(bm.out = aimodels, group.by = c("run"), dataset = c( "calibration"))
+```
+
+finding the importance of the variables in the models
+```{r}
+ascores <- get_evaluations(aimodels)
+vi <- as.data.frame(get_variables_importance(aimodels))
+
+aggregate(var.imp ~ expl.var, vi, mean)
+```
+
+# building now the response plots
+```{r}
+ai_glm <- BIOMOD_LoadModels(aimodels, algo = "GLM")
+```
+
+```{r}
+rc <- bm_PlotResponseCurves(
+  bm.out         = aimodels,
+  models.chosen  = ai_glm,
+  new.env        = get_formal_data(aimodels, "expl.var"),
+  #show.variables = get_formal_data(aimodels, "expl.var.names"),
+  show.variables = c("pr", "tasmax"), # choose specific response variables
+  fixed.var      = "mean",      # or "median"
+  do.bivariate   = FALSE,
+  do.plot        = TRUE
+)
+```
+### 6.2 projecting the models
+
+```{r}
+models.proj <- get_built_models(aimodels, algo = "GLM")
+# Project single models
+aiproj <- BIOMOD_Projection(bm.mod = aimodels,
+                                  proj.name = 'onlyclimate',
+                                  new.env = myExpl,
+                                  models.chosen = models.proj,
+                                  metric.binary = 'all',
+                            seed.val = seedproj
+                                  )
+```
+# ###########################
+```{r}
+evals <- get_evaluations(aimodels)
+
+tss_cutoff <- evals[evals$metric.eval == "TSS", "cutoff"]
+
+summary(tss_cutoff)
+
+# calculando desviación estandar y dispersion
+
+sd_cutoff <- sd(tss_cutoff)
+sd_cutoff
+```
+
+
+ Now we work with the model and projection rasters
+```{r}
+prob_raster <- get_predictions(aiproj)
+model_names <- get_projected_models(aiproj)
+evaltable <- get_evaluations (aimodels)
+
+# extracting cutoffs 
+current_cuttoffs <- evaltable[match(model_names, evaltable$full.name) &
+                                evaltable$metric.eval == "TSS", "cutoff"]
+current_cuttoffs <- as.numeric(current_cuttoffs)
+
+# verificación de coincidencia con los rasters modelados
+if(length(current_cuttoffs) != nlyr(prob_raster)) {
+  stop("number of cuttoffs do not coincide with the number of models/rasters.")
+}
+
+# binary transformation
+#aibinary <- bm_BinaryTransformation(data=prob_raster, threshold = current_cuttoffs)
+aibinary <- bm_BinaryTransformation(data=prob_raster, threshold = 950)
+plot(aibinary[[9]])
+```
+
+
+```{r}
+thr <- c(950, 900, 800, 600, 500)
+
+# Apply each threshold to the full 9-layer SpatRaster
+bin_list <- lapply(thr, function(t) {
+  b <- bm_BinaryTransformation(data = prob_raster, threshold = t)  # returns 9 layers
+  b <- as.int(b > 0)  # ensure 0/1 (keeps NA as NA)
+  names(b) <- paste0(names(prob_raster), "_thr", t)
+  b
+})
+
+# Combine into one 36-layer SpatRaster
+bin_stack <- rast(bin_list)
+
+#Keeping only rastes for model with all runs and all data
+keep <- c(9, 18, 27, 36, 45)
+aibinary <- bin_stack[[keep]]
+
+# Example: plot layer "originalName_thr950" (replace with a real layer name)
+plot(aibinary)
+
+names(aibinary)
+```
+
+```{r}
+seedformat <- 10
+seedmodel <- 452
+seedproj <- 794
+```
+
+
+# Saving the rasters
+
+```{r}
+# cropping and masking to be only in reported provinces
+aibinary_crop <- crop(aibinary, ai_prov)
+aibinary_crop <- mask(aibinary_crop, ai_prov)
+
+# turning 0 into no data:
+
+# r is your multi-layer SpatRaster (stack)
+aibinary_crop <- subst(aibinary_crop, from = 0, to = NA)
+
+# writing rasters
+writeRaster(aibinary_crop, 
+      file = here("project", "Atelopus niche modelling", "single_SDM", "outputs", "aibin_vif_clim_1821.tif"),
+      overwrite = TRUE,
+      NAflag = -32768,
+      datatype = "INT2S")
+
+```
+
+

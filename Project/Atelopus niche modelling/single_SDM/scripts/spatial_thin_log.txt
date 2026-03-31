@@ -1,0 +1,193 @@
+********************************************** 
+ Beginning Spatial Thinning.
+ Script Started at: Wed Feb 18 17:38:17 2026
+There appear to be more than one species name in this *.csv file.
+Only using species name: Atelopus ignescens
+
+Thinning Parameter Used (in km): 2
+Number of replicates of thinning script: 100
+
+Elapsed time for thinning completion
+0.085 0.066 0.322 0.007 0.02
+
+Number of data.frames per locations retained
+loc.cnt df.freq
+117	118
+39	61
+Maximum number of records after thinning: 118
+Number of data.frames with max records: 61
+No files written for this run.
+********************************************** 
+ Beginning Spatial Thinning.
+ Script Started at: Wed Feb 18 17:40:00 2026
+There appear to be more than one species name in this *.csv file.
+Only using species name: Atelopus ignescens
+
+Thinning Parameter Used (in km): 2
+Number of replicates of thinning script: 100
+
+Elapsed time for thinning completion
+0.079 0.005 0.092 0 0
+
+Number of data.frames per locations retained
+loc.cnt df.freq
+117	118
+39	61
+Maximum number of records after thinning: 118
+Number of data.frames with max records: 61
+No files written for this run.
+********************************************** 
+ Beginning Spatial Thinning.
+ Script Started at: Wed Feb 18 17:43:53 2026
+There appear to be more than one species name in this *.csv file.
+Only using species name: Atelopus ignescens
+
+Thinning Parameter Used (in km): 2
+Number of replicates of thinning script: 100
+
+Elapsed time for thinning completion
+0.085 0.059 0.194 0.007 0.015
+
+Number of data.frames per locations retained
+loc.cnt df.freq
+117	118
+54	46
+Maximum number of records after thinning: 118
+Number of data.frames with max records: 46
+No files written for this run.
+********************************************** 
+ Beginning Spatial Thinning.
+ Script Started at: Wed Feb 18 17:44:15 2026
+There appear to be more than one species name in this *.csv file.
+Only using species name: Atelopus ignescens
+
+Thinning Parameter Used (in km): 2
+Number of replicates of thinning script: 50
+
+Elapsed time for thinning completion
+0.045 0.046 0.156 0.006 0.015
+
+Number of data.frames per locations retained
+loc.cnt df.freq
+117	118
+20	30
+Maximum number of records after thinning: 118
+Number of data.frames with max records: 30
+No files written for this run.
+********************************************** 
+ Beginning Spatial Thinning.
+ Script Started at: Wed Feb 18 17:44:50 2026
+There appear to be more than one species name in this *.csv file.
+Only using species name: Atelopus ignescens
+
+Thinning Parameter Used (in km): 2
+Number of replicates of thinning script: 50
+
+Elapsed time for thinning completion
+0.039 0.003 0.042 0 0
+
+Number of data.frames per locations retained
+loc.cnt df.freq
+117	118
+16	34
+Maximum number of records after thinning: 118
+Number of data.frames with max records: 34
+No files written for this run.
+********************************************** 
+ Beginning Spatial Thinning.
+ Script Started at: Wed Feb 18 17:45:05 2026
+There appear to be more than one species name in this *.csv file.
+Only using species name: Atelopus ignescens
+
+Thinning Parameter Used (in km): 2
+Number of replicates of thinning script: 50
+
+Elapsed time for thinning completion
+0.039 0.003 0.042 0 0
+
+Number of data.frames per locations retained
+loc.cnt df.freq
+117	118
+22	28
+Maximum number of records after thinning: 118
+Number of data.frames with max records: 28
+No files written for this run.
+********************************************** 
+ Beginning Spatial Thinning.
+ Script Started at: Wed Feb 18 17:59:04 2026
+********************************************** 
+ Beginning Spatial Thinning.
+ Script Started at: Wed Feb 18 18:00:02 2026
+There appear to be more than one species name in this *.csv file.
+Only using species name: Atelopus ignescens
+
+Thinning Parameter Used (in km): 2
+Number of replicates of thinning script: 50
+
+Elapsed time for thinning completion
+0.038 0.006 0.051 0 0
+
+Number of data.frames per locations retained
+loc.cnt df.freq
+117	118
+24	26
+Maximum number of records after thinning: 118
+Number of data.frames with max records: 26
+No files written for this run.
+********************************************** 
+ Beginning Spatial Thinning.
+ Script Started at: Wed Feb 18 23:09:47 2026
+There appear to be more than one species name in this *.csv file.
+Only using species name: Atelopus ignescens
+
+Thinning Parameter Used (in km): 2
+Number of replicates of thinning script: 50
+
+Elapsed time for thinning completion
+0.06 0.071 0.198 0.008 0.018
+
+Number of data.frames per locations retained
+loc.cnt df.freq
+117	118
+15	35
+Maximum number of records after thinning: 118
+Number of data.frames with max records: 35
+No files written for this run.
+********************************************** 
+ Beginning Spatial Thinning.
+ Script Started at: Wed Feb 18 23:20:50 2026
+There appear to be more than one species name in this *.csv file.
+Only using species name: Atelopus ignescens
+
+Thinning Parameter Used (in km): 2
+Number of replicates of thinning script: 50
+
+Elapsed time for thinning completion
+0.056 0.009 0.067 0 0
+
+Number of data.frames per locations retained
+loc.cnt df.freq
+117	118
+14	36
+Maximum number of records after thinning: 118
+Number of data.frames with max records: 36
+No files written for this run.
+********************************************** 
+ Beginning Spatial Thinning.
+ Script Started at: Thu Feb 19 18:12:34 2026
+There appear to be more than one species name in this *.csv file.
+Only using species name: Atelopus ignescens
+
+Thinning Parameter Used (in km): 2
+Number of replicates of thinning script: 50
+
+Elapsed time for thinning completion
+0.039 0.004 0.042 0 0
+
+Number of data.frames per locations retained
+loc.cnt df.freq
+117	118
+19	31
+Maximum number of records after thinning: 118
+Number of data.frames with max records: 31
+No files written for this run.

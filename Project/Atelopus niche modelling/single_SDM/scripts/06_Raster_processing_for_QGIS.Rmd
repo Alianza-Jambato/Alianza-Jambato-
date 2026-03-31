@@ -1,0 +1,110 @@
+---
+title: "Raster processing for QGIS"
+author: "Andres Marmol"
+date: "2026-03-31"
+output: html_document
+---
+
+This notebook reformats the binarised SDM outputs from both model variants —
+climate-only (`aibin_vif_clim_1821.tif`) and all-variables
+(`aibin_vif_allvar_1821.tif`) — into multi-band rasters suitable for direct
+styled visualisation in QGIS.
+
+Each source file contains five bands, one per suitability threshold (950, 900,
+800, 600, 500 on the 0–1000 biomod2 scale, from most to least conservative).
+The cascading `ifel()` logic assigns each pixel to the highest threshold band
+at which it is classified as present, producing five non-overlapping presence
+zones that can be stacked and styled in QGIS without overlap.
+
+Run this notebook after both `clim_ai_1821.rmd` and `allvar_ai_1821.rmd` have
+completed successfully.
+
+# 1. Load libraries
+
+```{r}
+require("terra")  # Raster and vector spatial operations
+require("here")   # Relative path management
+```
+
+# 2. Define a reusable processing function
+
+The logic is identical for both model variants, so it is wrapped once in a
+function that accepts an input file path, a label for plot titles, and an
+output file path.
+
+```{r}
+process_for_qgis <- function(input_path, label, output_path) {
+
+  if (!file.exists(input_path)) {
+    stop(label, ": input file not found at ", input_path,
+         "\nHas the corresponding SDM notebook been run?")
+  }
+
+  files <- rast(input_path)
+  cat(label, "— layers found:", nlyr(files), "\n")
+  cat("Layer names:", paste(names(files), collapse = ", "), "\n\n")
+
+  # Inspect raw input
+  plot(files, main = paste(label, "— raw input bands"))
+
+  # Extract the five threshold bands (bands 1-5: 950, 900, 800, 600, 500)
+  a <- files[[1]]  # threshold 950 — most conservative
+  b <- files[[2]]  # threshold 900
+  c <- files[[3]]  # threshold 800
+  d <- files[[4]]  # threshold 600
+  e <- files[[5]]  # threshold 500 — least conservative
+
+  # Cascading ifel: each pixel assigned only to its highest present threshold
+  band1 <- a
+  band2 <- ifel(!is.na(b) &  is.na(a), 1, NA)
+  band3 <- ifel(!is.na(c) &  is.na(b), 1, NA)
+  band4 <- ifel(!is.na(d) &  is.na(c), 1, NA)
+  band5 <- ifel(!is.na(e) &  is.na(d), 1, NA)
+
+  out        <- c(band1, band2, band3, band4, band5)
+  names(out) <- c("950", "900", "800", "600", "500")
+
+  plot(out, main = paste(label, "—", names(out)))
+
+  writeRaster(out,
+              filename = output_path,
+              overwrite = TRUE,
+              NAflag    = -32768,
+              datatype  = "INT2S")
+
+  cat("Written to:", output_path, "\n\n")
+  invisible(out)
+}
+```
+
+# 3. Define input and output paths
+
+```{r}
+out_dir <- here("Project", "Atelopus niche modelling", "single_SDM", "outputs")
+
+clim_in  <- file.path(out_dir, "aibin_vif_clim_1821.tif")
+clim_out <- file.path(out_dir, "aibin_vif_clim_1821_qgis.tif")
+
+allvar_in  <- file.path(out_dir, "aibin_vif_allvar_1821.tif")
+allvar_out <- file.path(out_dir, "aibin_vif_allvar_1821_qgis.tif")
+```
+
+# 4. Process climate-only model
+
+```{r}
+process_for_qgis(
+  input_path  = clim_in,
+  label       = "Climate only",
+  output_path = clim_out
+)
+```
+
+# 5. Process all-variables model
+
+```{r}
+process_for_qgis(
+  input_path  = allvar_in,
+  label       = "All variables",
+  output_path = allvar_out
+)
+```
