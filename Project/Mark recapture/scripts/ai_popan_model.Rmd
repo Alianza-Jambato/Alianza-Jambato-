@@ -3,7 +3,12 @@ title: "Mark-recapture analysis of the standardised monitoring of *Atelopus igne
 author: "Camila Freire & Andrés Mármol-Guijarro"
 date: "2026-01-20"
 output: html_document
+editor_options: 
+  markdown: 
+    wrap: 72
 ---
+
+# Code book for running Rmark in R
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
@@ -216,11 +221,12 @@ ai.results
 
 ## Results from the top model
 
-The top model is `phi.time.p.dot.pent.time.N`, in which survival and entry
-probability vary over time but detection probability is held constant. This
-assumes that all sampling events were conducted by the same observers, that
-weather conditions do not influence recapture probability, and that site
-conditions have remained stable over the study period.
+The top model is `phi.time.p.dot.pent.time.N`, in which survival and
+entry probability vary over time but detection probability is held
+constant. This assumes that all sampling events were conducted by the
+same observers, that weather conditions do not influence recapture
+probability, and that site conditions have remained stable over the
+study period.
 
 ```{r top-model}
 top <- ai.results$phi.time.p.dot.pent.time.N
