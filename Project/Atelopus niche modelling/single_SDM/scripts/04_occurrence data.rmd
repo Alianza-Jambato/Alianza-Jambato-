@@ -1,6 +1,6 @@
 ---
 title: "Atelopus occurrences code"
-author: "Andres Marmol"
+author: "Andres Marmol & Amaru Rubio"
 date: "2026-02-19"
 output: html_document
 ---
@@ -8,19 +8,7 @@ This R Markdown notebook performs a Species Distribution Model (SDM) for *Atelop
 
 This notebook works with relative pathways, meaning that the following structure for storing the data should be followed. For that the 'here' package is needed.
 
-```         
-root/                         <- main project folder (the root)
-├─ 1985-1990/                 <- period folder
-│  ├─ scripts/                <- R scripts specific to 1985–1990 (or runs for this period)
-│  ├─ input/                  <- raw inputs for this period
-│  ├─ output/                 <- processed outputs for this period
-│  └─ figures/                <- plots/maps for this period
-└─ 2018-2023/                 <- period folder
-   ├─ scripts/                <- R scripts specific to 2018–2023 (or runs for this period)
-   ├─ input/                  <- raw inputs for this period
-   ├─ output/                 <- processed outputs for this period
-   └─ figures/                <- plots/maps for this period
-```
+
 
 ```{r}
 ## Load required libraries
