@@ -4,11 +4,10 @@ author: "Andres Marmol & Amaru Rubio"
 date: "2026-02-19"
 output: html_document
 ---
+
 This R Markdown notebook performs a Species Distribution Model (SDM) for *Atelopus ignescens* (the Jambato toad) using the biomod2 package. The workflow involves data preparation, pseudo-absence generation, Generalized Linear Model (GLM) fitting, and projecting the habitat suitability map.
 
 This notebook works with relative pathways, meaning that the following structure for storing the data should be followed. For that the 'here' package is needed.
-
-
 
 ```{r}
 ## Load required libraries
@@ -143,25 +142,13 @@ dfaig_cl <- dfaig_cl %>%
 
 ### 1.4. Reduce biases in the dataset
 
-#```{r}
-library(spThin)
+#\`\`\`{r} library(spThin)
 
-df_thinned <- spThin::thin(
-  dfaig_cl2,
-  lat.col = "decimalLatitude",
-  long.col = "decimalLongitude",
-  spec.col = "species",
-  thin.par = 2, 
-  reps = 50,
-  locs.thinned.list.return = T, # creates tables based on repetitions.
-  write.files = FALSE
-) 
+df_thinned \<- spThin::thin( dfaig_cl2, lat.col = "decimalLatitude", long.col = "decimalLongitude", spec.col = "species", thin.par = 2, reps = 50, locs.thinned.list.return = T, \# creates tables based on repetitions. write.files = FALSE )
 
 # extract the best thinned dataset
-dfaig_cl <- df_thinned[[1]]
-dfaig_cl$species = "Atelopusignescens"
-#```
 
+dfaig_cl \<- df_thinned[[1]] dfaig_cl\$species = "Atelopusignescens" #\`\`\`
 
 Lastly, occurences are comparted to the known literature by exploring them on a map
 
@@ -222,10 +209,10 @@ write.csv(dfaig_cl, file = here("Project", "Atelopus niche modelling", "single_S
 ```
 
 While on travel
+
 ```{r}
 dfaig_cl <- read.csv(here("Project", "Atelopus niche modelling", "single_SDM",
                        "input_data", "ai_occur_clean.csv"))
 ai_occur <- data.frame(species = dfaig_cl$species, lon = as.numeric(dfaig_cl$x), lat = as.numeric(dfaig_cl$y))
 ai_occur$occur <- 1 
 ```
-

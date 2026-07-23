@@ -16,15 +16,18 @@ seedproj <- 794
 # 2. Defining the environmental predictors
 
 ### 2.1 Uploading DEM and cutting it
+
 This layer was downloaded from earthexplorer.usgs.gov for a box containing Mainland Ecuador
 
 Calling raw data
+
 ```{r}
 DEM <- here("Project", "Atelopus niche modelling", "single_SDM", "input_data", "Ecuador_DEM", "10s090w_20101117_gmted_mea300.tif")
 ecDEM <- rast(DEM)
 ```
 
 cutting DEM to Atelopus ignescens presence based on provinces
+
 ```{r}
 #checking coordinate systems
 crs(ecDEM, describe = TRUE)
@@ -98,6 +101,7 @@ print(kept_vars)
 excluded <- vif_stepwise@excluded
 print(excluded)
 ```
+
 dropping variables based on the VIFs
 
 ```{r}
@@ -131,9 +135,11 @@ aidata <- BIOMOD_FormatingData(
   seed.val=seedformat
 )
 ```
+
 ```{r}
 plot(aidata)
 ```
+
 # 4. Defining modelling options
 
 I am running only a GLM, for its simplicity and interpretability. Other algorithms such as maxent, random forest, etc. can work but also have a higher chance of overfitting.
@@ -146,6 +152,7 @@ aiopt <- bm_ModelingOptions(
   bm.format = aidata
 )
 ```
+
 # 5. Run individual model
 
 ```{r}
@@ -174,7 +181,6 @@ evals <- get_evaluations(aimodels)
 evals
 ```
 
-
 ```{r}
 # assesing the models through eval metrics
 
@@ -183,6 +189,7 @@ bm_PlotEvalMean(bm.out = aimodels, group.by = c("run"), dataset = c( "calibratio
 ```
 
 finding the importance of the variables in the models
+
 ```{r}
 ascores <- get_evaluations(aimodels)
 vi <- as.data.frame(get_variables_importance(aimodels))
@@ -191,6 +198,7 @@ aggregate(var.imp ~ expl.var, vi, mean)
 ```
 
 # building now the response plots
+
 ```{r}
 ai_glm <- BIOMOD_LoadModels(aimodels, algo = "GLM")
 ```
@@ -207,6 +215,7 @@ rc <- bm_PlotResponseCurves(
   do.plot        = TRUE
 )
 ```
+
 ### 6.2 projecting the models
 
 ```{r}
@@ -220,7 +229,9 @@ aiproj <- BIOMOD_Projection(bm.mod = aimodels,
                             seed.val= seedproj
                                   )
 ```
-# ###########################
+
+# 
+
 ```{r}
 evals <- get_evaluations(aimodels)
 
@@ -234,8 +245,8 @@ sd_cutoff <- sd(tss_cutoff)
 sd_cutoff
 ```
 
+Now we work with the model and projection rasters
 
- Now we work with the model and projection rasters
 ```{r}
 prob_raster <- get_predictions(aiproj)
 model_names <- get_projected_models(aiproj)
@@ -280,14 +291,15 @@ plot(aibinary)
 
 names(aibinary)
 ```
+
 ```{r}
 seedformat <- 10
 seedmodel <- 452
 seedproj <- 794
 ```
 
-
 # 7 Saving the project
+
 ```{r}
 # cropping and masking to be only in reported provinces
 aibinary_crop <- crop(aibinary, ai_prov)
@@ -305,25 +317,9 @@ writeRaster(aibinary_crop,
       NAflag = -32768,
       datatype = "INT2S")
 ```
- 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 # 6. Ensembling the models
+
 ```{r}
 aimodelens <- BIOMOD_EnsembleModeling(bm.mod = aimodels,
                                       models.chosen = 'all',
@@ -336,6 +332,7 @@ aimodelens <- BIOMOD_EnsembleModeling(bm.mod = aimodels,
                                       seed.val = 42
                                       )
 ```
+
 ```{r}
 get_evaluations(aimodelens)
 get_variables_importance(aimodelens)
@@ -366,7 +363,9 @@ bm_PlotEvalBoxplot(bm.out = aimodelens, group.by = c('algo', 'algo'))
  fixed.var = 'median',
  do.bivariate = TRUE)
 ```
+
 # 7. Projecting model to a new environment.
+
 ```{r}
 # Calling new set of files
 input_files <- list.files(root_file, pattern = ".*2018-2021\\.tif$", full.names = TRUE) # change to 2018-2021 for the other date
@@ -402,22 +401,4 @@ names(myExplnew) <- c(
 names(myExplnew)
 ```
 
-projecting the model together with the new variables:
-#```{r}
-# Project single models
-aimodel1821 <- BIOMOD_Projection(bm.mod = aimodels,
-                                  proj.name = '2018-2021_projections',
-                                  new.env = myExplnew,
-                                  models.chosen = 'all',
-                                  metric.binary = 'all',
-                                  metric.filter = 'all',
-                                  build.clamping.mask = TRUE)
-aimodel1821
-plot(aimodel1821)
-```
-binarising the output
-#```{r}
-n <- bm_BinaryTransformation(data = p$pred, threshold = thr)
-#```
-
-
+projecting the model together with the new variables: \#`{r} # Project single models aimodel1821 <- BIOMOD_Projection(bm.mod = aimodels,                                   proj.name = '2018-2021_projections',                                   new.env = myExplnew,                                   models.chosen = 'all',                                   metric.binary = 'all',                                   metric.filter = 'all',                                   build.clamping.mask = TRUE) aimodel1821 plot(aimodel1821)` binarising the output \#`{r} n <- bm_BinaryTransformation(data = p$pred, threshold = thr) #`
