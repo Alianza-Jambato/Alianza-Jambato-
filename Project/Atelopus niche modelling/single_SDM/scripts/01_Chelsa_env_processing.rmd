@@ -2,7 +2,7 @@
 title: "Chelsa climate data process"
 author: "Andres Marmol"
 date: "2026-02-16"
-output: html_document
+output: github_document
 ---
 
 # Intro
@@ -21,7 +21,7 @@ library(here)
 
 ```{r}
 # directories to work
-dir_in <- '/Volumes/AM SSD/alianza_jambato/Chelsa_monthly'
+dir_in <- '/Volumes/AM_SSD/alianza_jambato/Chelsa_monthly'
 dir_out <- here("Project", "Atelopus niche modelling", "single_SDM","input_data")
 dir.create(dir_out, showWarnings = FALSE, recursive = TRUE)
 
@@ -50,7 +50,7 @@ ai_prov <- ec[ec$NAME_1 %in% prov, ]
 plot(ai_prov)
 
 # raster template:
-precip <- rast('/Volumes/AM SSD/alianza_jambato/Chelsa_monthly/CHELSA_pr_03_1985_V.2.1.tif')
+precip <- rast('/Volumes/AM_SSD/alianza_jambato/Chelsa_monthly/CHELSA_pr_03_1985_V.2.1.tif')
 precip_ai <-crop(precip, ec_mainland) # cuts to take into account the provinces where the jambato is
 precip_ai <-mask(precip_ai, ec_mainland) # masks the file # I have changes ai_prov for ec_mainland 
 template <- precip_ai

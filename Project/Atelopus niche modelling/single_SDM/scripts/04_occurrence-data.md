@@ -1,19 +1,19 @@
----
-title: "Atelopus occurrences code"
-author: "Andres Marmol & Amaru Rubio"
-date: "2026-02-19"
-output: github_document
----
+Atelopus occurrences code
+================
+Andres Marmol & Amaru Rubio
+2026-02-19
 
-This R Markdown notebook performs a Species Distribution Model (SDM) for *Atelopus ignescens* (the Jambato toad) using the biomod2 package. The workflow involves data preparation, pseudo-absence generation, Generalized Linear Model (GLM) fitting, and projecting the habitat suitability map.
+This R Markdown notebook performs a Species Distribution Model (SDM) for
+*Atelopus ignescens* (the Jambato toad) using the biomod2 package. The
+workflow involves data preparation, pseudo-absence generation,
+Generalized Linear Model (GLM) fitting, and projecting the habitat
+suitability map.
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, message = FALSE, warning = FALSE)
-```
+This notebook works with relative pathways, meaning that the following
+structure for storing the data should be followed. For that the ‘here’
+package is needed.
 
-This notebook works with relative pathways, meaning that the following structure for storing the data should be followed. For that the 'here' package is needed.
-
-```{r}
+``` r
 ## Load required libraries
 require("terra")     # For handling spatial rasters and vectors
 require("raster")    # (Legacy: Often still needed for compatibility with older spatial packages like biomod2)
@@ -34,19 +34,33 @@ require("randomForest")
 
 # 1. Data Loading and Preparation
 
-This section loads the species occurrence data directly from GBIF and the environmental predictor variables (rasters with the same extension, CRS and resolution).
+This section loads the species occurrence data directly from GBIF and
+the environmental predictor variables (rasters with the same extension,
+CRS and resolution).
 
 ### 1.1. Pulling GBIF occurrences
 
 First, the taxonomic name of Atelopus must be confirmed.
 
-```{r}
+``` r
 name_suggest(q="Atelopus ignescens", rank = "species")
 ```
 
-Following, there is a check on the number of records available for the species, of which only those with coordinates are selected. At the end a dataframe called 'gbif_ai' is created. 'limit' is set up up to 2000 as GBIF contains 1637 records. Otherwise only 500 are retreived by default.
+    ## Records returned [1] 
+    ## No. unique hierarchies [0] 
+    ## Args [q=Atelopus ignescens, limit=100, rank=species, fields1=key,
+    ##      fields2=canonicalName, fields3=rank] 
+    ## # A tibble: 1 × 3
+    ##       key canonicalName      rank   
+    ##     <int> <chr>              <chr>  
+    ## 1 5216669 Atelopus ignescens SPECIES
 
-```{r}
+Following, there is a check on the number of records available for the
+species, of which only those with coordinates are selected. At the end a
+dataframe called ‘gbif_ai’ is created. ‘limit’ is set up up to 2000 as
+GBIF contains 1637 records. Otherwise only 500 are retreived by default.
+
+``` r
 gbif_ai <- occ_search(
               scientificName = "Atelopus ignescens",  # confirmed name of the species
               hasCoordinate=T,                        # logical argument to choose occ. with coordinates
@@ -58,9 +72,10 @@ gbif_ai <- gbif_ai$data
 
 ### 1.2 Adding Alianza Jambato observations into the dataframe.
 
-This dataset contains all the distribution points + collected over 2021-2022 by Alianza Jambato, Mateo Vega and Amanda Quezada.
+This dataset contains all the distribution points + collected over
+2021-2022 by Alianza Jambato, Mateo Vega and Amanda Quezada.
 
-```{r}
+``` r
 #project structure folder:
 proj_root <- '/Alianza_Jambato_Git/Project/Atelopus niche modelling/single_SDM'
 
@@ -70,7 +85,7 @@ aj_ai$countryCode = "EC"
 aj_ai$stateProvince = "Cotopaxi"
 ```
 
-```{r}
+``` r
 dfs = list(gbif = gbif_ai, df1 = aj_ai)
 
 # creating a column indicating the df source
@@ -101,9 +116,15 @@ row.names(dfaig) <- NULL
 
 ### 1.3. Checking duplicate coordinates and coordinates that are missplaced
 
-Is always good practice to curate occurrence records from GBIF, as many of them could have innacurate identification of the corresponding species, or due to a lack of curation from the source (record hasn't been updated at the hosting institution, often a Natural History Museum). For that, we first use 'CoordinateCleaner' to clean GBIF data problems (e.g. point at province/states centroids) and finally a visual inspection based on literature review
+Is always good practice to curate occurrence records from GBIF, as many
+of them could have innacurate identification of the corresponding
+species, or due to a lack of curation from the source (record hasn’t
+been updated at the hosting institution, often a Natural History
+Museum). For that, we first use ‘CoordinateCleaner’ to clean GBIF data
+problems (e.g. point at province/states centroids) and finally a visual
+inspection based on literature review
 
-```{r}
+``` r
 library("CoordinateCleaner")
 library("countrycode")
 
@@ -120,17 +141,20 @@ dfaig_clean <- clean_coordinates(dfaig,
                                  tests = c("centroids", "duplicates", "outliers"))
 ```
 
-```{r}
+``` r
 plot(dfaig_clean)
 ```
 
-```{r}
+![](04_occurrence-data_files/figure-gfm/unnamed-chunk-7-1.png)<!-- -->
+
+``` r
 dfaig_cl <- dfaig[dfaig_clean$.summary,]
 ```
 
-A few registers come from INaturalist and for protection reasons these are with a 30 km uncertainty. Thus, they need also to be filtered
+A few registers come from INaturalist and for protection reasons these
+are with a 30 km uncertainty. Thus, they need also to be filtered
 
-```{r}
+``` r
 w <- "www.inaturalist.org"
 m <- as.matrix(dfaig_cl)
 
@@ -146,21 +170,26 @@ dfaig_cl <- dfaig_cl %>%
 
 ### 1.4. Reduce biases in the dataset
 
-#\`\`\`{r} library(spThin)
+\#\`\`\`{r} library(spThin)
 
-df_thinned \<- spThin::thin( dfaig_cl2, lat.col = "decimalLatitude", long.col = "decimalLongitude", spec.col = "species", thin.par = 2, reps = 50, locs.thinned.list.return = T, \# creates tables based on repetitions. write.files = FALSE )
+df_thinned \<- spThin::thin( dfaig_cl2, lat.col = “decimalLatitude”,
+long.col = “decimalLongitude”, spec.col = “species”, thin.par = 2, reps
+= 50, locs.thinned.list.return = T, \# creates tables based on
+repetitions. write.files = FALSE )
 
 # extract the best thinned dataset
 
-dfaig_cl \<- df_thinned[[1]] dfaig_cl\$species = "Atelopusignescens" #\`\`\`
+dfaig_cl \<- df_thinned\[\[1\]\] dfaig_cl\$species = “Atelopusignescens”
+\#\`\`\`
 
-Lastly, occurences are comparted to the known literature by exploring them on a map
+Lastly, occurences are comparted to the known literature by exploring
+them on a map
 
-```{r}
+``` r
 library(geodata) 
 ```
 
-```{r}
+``` r
 # GDAM Admin-1 (provinces) for Ecuador
 ec <- geodata::gadm(country = "ECU", level = 1, path = "gadm_cache")
 
@@ -173,7 +202,9 @@ ai_prov <- ec[ec$NAME_1 %in% prov, ]
 plot(ai_prov)
 ```
 
-```{r}
+![](04_occurrence-data_files/figure-gfm/unnamed-chunk-11-1.png)<!-- -->
+
+``` r
 plot(ec_mainland)
 occ <- vect(dfaig_cl, geom = c("decimalLongitude", "decimalLatitude"), crs = "EPSG:4326")
 #occ <- vect(dfaig_cl, geom = c("Longitude", "Latitude"), crs = "EPSG:4326") # activate only with spTHIN
@@ -181,9 +212,11 @@ occ <- project(occ, crs(ec_mainland))
 plot(occ, add = TRUE)
 ```
 
+![](04_occurrence-data_files/figure-gfm/unnamed-chunk-12-1.png)<!-- -->
+
 filtering occurences based on provinces precense
 
-```{r}
+``` r
 # CRS must match 
 occ <- project(occ, crs(ai_prov))
 
@@ -193,30 +226,32 @@ occ_sel <- terra::intersect(occ, ai_prov)
 
 Cheking new distribution
 
-```{r}
+``` r
 plot(ec_mainland)
 plot(occ_sel, add = TRUE)
 ```
 
+![](04_occurrence-data_files/figure-gfm/unnamed-chunk-14-1.png)<!-- -->
+
 binging back the csv file from the occ spat vector created
 
-```{r}
-
+``` r
 dfaig_cl <- as.data.frame(occ_sel, geom = "XY")
 ai_occur <- data.frame(species = dfaig_cl$species, lon = as.numeric(dfaig_cl$x), lat = as.numeric(dfaig_cl$y))
 ai_occur$occur <- 1 
 ```
 
-```{r}
+``` r
 write.csv(dfaig_cl, file = here("Project", "Atelopus niche modelling", "single_SDM",
                        "input_data", "ai_occur_clean.csv"), col.names = TRUE)
 ```
 
 ------------------------------------------------------------------------
 
-This section is to save the occurence point in case no internet connection is available (e.g. while on travel)
+This section is to save the occurence point in case no internet
+connection is available (e.g. while on travel)
 
-```{r}
+``` r
 dfaig_cl <- read.csv(here("Project", "Atelopus niche modelling", "single_SDM",
                        "input_data", "ai_occur_clean.csv"))
 ai_occur <- data.frame(species = dfaig_cl$species, lon = as.numeric(dfaig_cl$x), lat = as.numeric(dfaig_cl$y))

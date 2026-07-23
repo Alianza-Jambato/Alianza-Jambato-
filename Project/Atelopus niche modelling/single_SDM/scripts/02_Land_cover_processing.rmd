@@ -2,7 +2,7 @@
 title: "Processing land cover data from MAPBIOMAS Ecuador"
 author: "Andres Marmol"
 date: "2026-02-16"
-output: html_document
+output: github_document
 ---
 
 ```{r}
