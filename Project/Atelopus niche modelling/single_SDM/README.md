@@ -85,8 +85,16 @@ A `wget`-ready URL list is provided in `envidatS3paths.txt`. Run the
 following from the project root to download all files into the correct
 folder:
 
+On Mac
+
 ``` bash
 wget -i envidatS3paths.txt -P Project/Atelopus\ niche\ modelling/single_SDM/input_data/Chelsa_monthly_climate/
+```
+
+On Windows
+
+``` powershell
+wget.exe -c -i envidatS3paths.txt -P "Project/Atelopus niche modelling/single_SDM/input_data/Chelsa_monthly_climate/"
 ```
 
 > **Coverage note:** `envidatS3paths.txt` currently contains `tasmax`
